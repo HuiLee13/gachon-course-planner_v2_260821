@@ -227,7 +227,7 @@ export default function Home() {
   return (
     <main className="container">
       <header className="hero">
-        <h1>가천대 미술치료 과목 이수 플래너</h1>
+        <h1>가천대 미술치료 과목 이수 플래너_260821ver</h1>
         <p>
           과목을 체크하면 졸업·발달바우처·미술심리상담사·시험·프로포절
           요건을 자동으로 계산합니다.
@@ -430,6 +430,9 @@ export default function Home() {
           )}
         </div>
       </section>
+      <footer className="developer-footer">
+      Developed by Hui.
+     </footer> 
     </main>
   );
 }
