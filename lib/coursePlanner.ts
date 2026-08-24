@@ -203,7 +203,7 @@ export function analyzeRequirements(profile: StudentProfile): RequirementSummary
     : [];
 
   const proposal: CheckItem[] = profile.track === "THESIS"
-    ? [check("proposal-common-elective", "공통 선택", countCompleted(profile, proposalCourses), 2, "과목", 3, proposalCourses.map(c => c.id))]
+    ? [check("proposal-common-elective", "공통 선택", countCompleted(profile, proposalCourses), 2, "과목", 4, proposalCourses.map(c => c.id))]
     : [];
 
   return {
@@ -265,17 +265,23 @@ export function recommendCourses(profile: StudentProfile): CourseRecommendation[
   }
 
   if (profile.track === "THESIS" && need("proposal-common-elective")) {
-    candidates("proposal", "COMMON", "ELECTIVE").forEach(c => add(c, "프로포절 공통 선택", 10, 3));
+    candidates("proposal", "COMMON", "ELECTIVE").forEach(c => add(c, "프로포절 공통 선택", 10, 4));
   }
 
   if (need("graduation-common")) COURSES.filter(c => c.category === "COMMON").forEach(c => add(c, "졸업 공통 학점", 1, 5));
   if (need("graduation-major")) COURSES.filter(c => c.category === "MAJOR").forEach(c => add(c, "졸업 전공 학점", 1, 5));
 
-  // 기존 내부 가중치를 10점 만점으로 환산한다. 40점 이상은 10점.
-  return [...raw.values()]
+  // 현재 남아 있는 추천 후보들끼리 상대평가한다.
+  // 가장 높은 내부 원점수를 10점으로 두고 나머지는 최고점 대비 비율로 환산한다.
+  const remaining = [...raw.values()];
+  const maxRawScore = remaining.reduce((max, item) => Math.max(max, item.score), 0);
+
+  return remaining
     .map(item => ({
       ...item,
-      score: Math.min(10, Math.round((item.score / 4) * 10) / 10),
+      score: maxRawScore > 0
+        ? Math.round((item.score / maxRawScore) * 100) / 10
+        : 0,
     }))
     .sort((a, b) => b.score - a.score || a.course.name.localeCompare(b.course.name, "ko"));
 }

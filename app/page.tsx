@@ -215,7 +215,7 @@ export default function Home() {
     { key:"artPsychCounselor", title:"미술심리상담사(가천대)", description:"공통 필수 포함 4과목 · 전공 필수 5과목 · 전공 선택 3과목", items:summary.artPsychCounselor },
     { key:"comprehensiveExam", title:"종합시험", description:"4학차 응시 · 3학차까지 공통 선택 1과목 / 전공 필수 2과목 이수", items:summary.comprehensiveExam },
     { key:"graduationExam", title:"졸업시험", description:"비논문트랙만 해당 · 5학차 응시 · 4학차까지 전공 필수 3과목 이수", items:summary.graduationExam, hidden:track === "THESIS" },
-    { key:"proposal", title:"프로포절", description:"논문트랙만 해당 · 3학차까지 논문작성법/연구방법론/통계학 중 2과목 이수", items:summary.proposal, hidden:track === "NON_THESIS" },
+    { key:"proposal", title:"프로포절", description:"논문트랙만 해당 · 4학차까지 논문작성법/연구방법론/통계학 중 2과목 이수", items:summary.proposal, hidden:track === "NON_THESIS" },
   ].filter(group => !group.hidden);
 
   const baseFilters: [Filter,string][] = [
@@ -281,7 +281,7 @@ export default function Home() {
         )}
       </section>
 
-      <section><h2 className="section-title">3. 현재 이수 현황</h2><div className="grid4"><div className="metric"><div className="label">총 이수학점</div><div className="value">{credits.total}</div></div><div className="metric"><div className="label">공통 학점</div><div className="value">{credits.common}</div></div><div className="metric"><div className="label">전공 학점</div><div className="value">{credits.major}</div></div><div className="metric"><div className="label">이수 과목</div><div className="value">{completed.length}</div></div></div></section>
+      <section className="card"><h2 className="section-title">3. 현재 이수 현황</h2><div className="grid4"><div className="metric"><div className="label">총 이수학점</div><div className="value">{credits.total}</div></div><div className="metric"><div className="label">공통 학점</div><div className="value">{credits.common}</div></div><div className="metric"><div className="label">전공 학점</div><div className="value">{credits.major}</div></div><div className="metric"><div className="label">이수 과목</div><div className="value">{completed.length}</div></div></div></section>
 
       <section className="card" style={{marginTop:18}}><h2 className="section-title">4. 요건별 판정</h2>
         <div className="requirement-groups">{requirementGroups.map(group => <section className={`requirement-group requirement-${group.key}`} key={group.key}><div className="requirement-group-head"><h3>{group.title}</h3><p>{group.description}</p></div><div className="requirement-items">{group.items.map(item => <RequirementItem item={item} completedSet={completedSet} showCourses={group.key !== "graduation"} key={item.key} />)}</div></section>)}</div>
