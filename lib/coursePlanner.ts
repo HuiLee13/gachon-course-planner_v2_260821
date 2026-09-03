@@ -17,6 +17,8 @@ export interface Course {
 export interface StudentProfile {
   currentSemester: 1 | 2 | 3 | 4 | 5;
   track: Track;
+  developmentVoucherSelected: boolean;
+  artPsychCounselorSelected: boolean;
   completedCourseIds: string[];
 }
 
@@ -164,15 +166,15 @@ export function analyzeRequirements(profile: StudentProfile): RequirementSummary
   const voucherCommonElectiveCourses = candidates("developmentVoucher", "COMMON", "ELECTIVE");
   const voucherMajorRequiredCourses = candidates("developmentVoucher", "MAJOR", "REQUIRED");
   const voucherMajorElectiveCourses = candidates("developmentVoucher", "MAJOR", "ELECTIVE");
-  const voucherCommonRequiredTarget = voucherCommonRequiredCourses.length;
-  const voucherCommonElectiveTarget = Math.max(0, 2 - voucherCommonRequiredTarget);
+  const voucherCommonRequiredTarget = 1;
+  const voucherCommonElectiveTarget = 1;
 
   const certCommonRequiredCourses = candidates("artPsychCounselor", "COMMON", "REQUIRED");
   const certCommonElectiveCourses = candidates("artPsychCounselor", "COMMON", "ELECTIVE");
   const certMajorRequiredCourses = candidates("artPsychCounselor", "MAJOR", "REQUIRED");
   const certMajorElectiveCourses = candidates("artPsychCounselor", "MAJOR", "ELECTIVE");
-  const certCommonRequiredTarget = certCommonRequiredCourses.length;
-  const certCommonElectiveTarget = Math.max(0, 4 - certCommonRequiredTarget);
+  const certCommonRequiredTarget = 1;
+  const certCommonElectiveTarget = 3;
 
   const compCommonCourses = candidates("comprehensiveExam", "COMMON", "ELECTIVE");
   const compMajorCourses = candidates("comprehensiveExam", "MAJOR", "REQUIRED");
@@ -180,30 +182,30 @@ export function analyzeRequirements(profile: StudentProfile): RequirementSummary
   const proposalCourses = candidates("proposal", "COMMON", "ELECTIVE");
 
   const developmentVoucher: CheckItem[] = [
-    check("voucher-common-required", "공통 필수", countCompleted(profile, voucherCommonRequiredCourses), voucherCommonRequiredTarget, "과목", undefined, voucherCommonRequiredCourses.map(c => c.id)),
-    check("voucher-common-elective", "공통 선택", countCompleted(profile, voucherCommonElectiveCourses), voucherCommonElectiveTarget, "과목", undefined, voucherCommonElectiveCourses.map(c => c.id)),
-    check("voucher-major-required", "전공 필수", countCompleted(profile, voucherMajorRequiredCourses), 3, "과목", undefined, voucherMajorRequiredCourses.map(c => c.id)),
-    check("voucher-major-elective", "전공 선택", countCompleted(profile, voucherMajorElectiveCourses), 6, "과목", undefined, voucherMajorElectiveCourses.map(c => c.id)),
+    check("voucher-common-required", "공통필수", countCompleted(profile, voucherCommonRequiredCourses), voucherCommonRequiredTarget, "과목", undefined, voucherCommonRequiredCourses.map(c => c.id)),
+    check("voucher-common-elective", "공통선택", countCompleted(profile, voucherCommonElectiveCourses), voucherCommonElectiveTarget, "과목", undefined, voucherCommonElectiveCourses.map(c => c.id)),
+    check("voucher-major-required", "전공필수", countCompleted(profile, voucherMajorRequiredCourses), 3, "과목", undefined, voucherMajorRequiredCourses.map(c => c.id)),
+    check("voucher-major-elective", "전공선택", countCompleted(profile, voucherMajorElectiveCourses), 6, "과목", undefined, voucherMajorElectiveCourses.map(c => c.id)),
   ];
 
   const artPsychCounselor: CheckItem[] = [
-    check("cert-common-required", "공통 필수", countCompleted(profile, certCommonRequiredCourses), certCommonRequiredTarget, "과목", undefined, certCommonRequiredCourses.map(c => c.id)),
-    check("cert-common-elective", "공통 선택", countCompleted(profile, certCommonElectiveCourses), certCommonElectiveTarget, "과목", undefined, certCommonElectiveCourses.map(c => c.id)),
-    check("cert-major-required", "전공 필수", countCompleted(profile, certMajorRequiredCourses), 5, "과목", undefined, certMajorRequiredCourses.map(c => c.id)),
-    check("cert-major-elective", "전공 선택", countCompleted(profile, certMajorElectiveCourses), 3, "과목", undefined, certMajorElectiveCourses.map(c => c.id)),
+    check("cert-common-required", "공통필수", countCompleted(profile, certCommonRequiredCourses), certCommonRequiredTarget, "과목", undefined, certCommonRequiredCourses.map(c => c.id)),
+    check("cert-common-elective", "공통선택", countCompleted(profile, certCommonElectiveCourses), certCommonElectiveTarget, "과목", undefined, certCommonElectiveCourses.map(c => c.id)),
+    check("cert-major-required", "전공필수", countCompleted(profile, certMajorRequiredCourses), 5, "과목", undefined, certMajorRequiredCourses.map(c => c.id)),
+    check("cert-major-elective", "전공선택", countCompleted(profile, certMajorElectiveCourses), 3, "과목", undefined, certMajorElectiveCourses.map(c => c.id)),
   ];
 
   const comprehensiveExam: CheckItem[] = [
-    check("comp-common-elective", "공통 선택", countCompleted(profile, compCommonCourses), 1, "과목", 3, compCommonCourses.map(c => c.id)),
-    check("comp-major-required", "전공 필수", countCompleted(profile, compMajorCourses), 2, "과목", 3, compMajorCourses.map(c => c.id)),
+    check("comp-common-elective", "공통선택", countCompleted(profile, compCommonCourses), 1, "과목", 3, compCommonCourses.map(c => c.id)),
+    check("comp-major-required", "전공필수", countCompleted(profile, compMajorCourses), 2, "과목", 3, compMajorCourses.map(c => c.id)),
   ];
 
   const graduationExam: CheckItem[] = profile.track === "NON_THESIS"
-    ? [check("graduation-exam-major-required", "전공 필수", countCompleted(profile, graduationExamCourses), 3, "과목", 4, graduationExamCourses.map(c => c.id))]
+    ? [check("graduation-exam-major-required", "전공필수", countCompleted(profile, graduationExamCourses), 3, "과목", 4, graduationExamCourses.map(c => c.id))]
     : [];
 
   const proposal: CheckItem[] = profile.track === "THESIS"
-    ? [check("proposal-common-elective", "공통 선택", countCompleted(profile, proposalCourses), 2, "과목", 4, proposalCourses.map(c => c.id))]
+    ? [check("proposal-common-elective", "공통선택", countCompleted(profile, proposalCourses), 2, "과목", 4, proposalCourses.map(c => c.id))]
     : [];
 
   return {
@@ -247,25 +249,31 @@ export function recommendCourses(profile: StudentProfile): CourseRecommendation[
 
   const need = (key: string) => Object.values(summary).flat().find(x => x.key === key && !x.completed);
 
-  if (need("voucher-common-required")) candidates("developmentVoucher", "COMMON", "REQUIRED").forEach(c => add(c, "발달바우처 공통 필수", 10));
-  if (need("voucher-common-elective")) candidates("developmentVoucher", "COMMON", "ELECTIVE").forEach(c => add(c, "발달바우처 공통 선택", 4));
-  if (need("voucher-major-required")) candidates("developmentVoucher", "MAJOR", "REQUIRED").forEach(c => add(c, "발달바우처 전공 필수", 10));
-  if (need("voucher-major-elective")) candidates("developmentVoucher", "MAJOR", "ELECTIVE").forEach(c => add(c, "발달바우처 전공 선택", 4));
+  // 발달바우처는 사용자가 목표 요건으로 선택한 경우에만 추천 점수에 반영한다.
+  if (profile.developmentVoucherSelected) {
+    if (need("voucher-common-required")) candidates("developmentVoucher", "COMMON", "REQUIRED").forEach(c => add(c, "발달바우처 공통필수", 10));
+    if (need("voucher-common-elective")) candidates("developmentVoucher", "COMMON", "ELECTIVE").forEach(c => add(c, "발달바우처 공통선택", 4));
+    if (need("voucher-major-required")) candidates("developmentVoucher", "MAJOR", "REQUIRED").forEach(c => add(c, "발달바우처 전공필수", 10));
+    if (need("voucher-major-elective")) candidates("developmentVoucher", "MAJOR", "ELECTIVE").forEach(c => add(c, "발달바우처 전공선택", 4));
+  }
 
-  if (need("cert-common-required")) candidates("artPsychCounselor", "COMMON", "REQUIRED").forEach(c => add(c, "미술심리상담사(가천대) 공통 필수", 10));
-  if (need("cert-common-elective")) candidates("artPsychCounselor", "COMMON", "ELECTIVE").forEach(c => add(c, "미술심리상담사(가천대) 공통 선택", 4));
-  if (need("cert-major-required")) candidates("artPsychCounselor", "MAJOR", "REQUIRED").forEach(c => add(c, "미술심리상담사(가천대) 전공 필수", 10));
-  if (need("cert-major-elective")) candidates("artPsychCounselor", "MAJOR", "ELECTIVE").forEach(c => add(c, "미술심리상담사(가천대) 전공 선택", 4));
+  // 미술심리상담사(가천대)도 사용자가 목표 요건으로 선택한 경우에만 추천 점수에 반영한다.
+  if (profile.artPsychCounselorSelected) {
+    if (need("cert-common-required")) candidates("artPsychCounselor", "COMMON", "REQUIRED").forEach(c => add(c, "미술심리상담사(가천대) 공통필수", 10));
+    if (need("cert-common-elective")) candidates("artPsychCounselor", "COMMON", "ELECTIVE").forEach(c => add(c, "미술심리상담사(가천대) 공통선택", 4));
+    if (need("cert-major-required")) candidates("artPsychCounselor", "MAJOR", "REQUIRED").forEach(c => add(c, "미술심리상담사(가천대) 전공필수", 10));
+    if (need("cert-major-elective")) candidates("artPsychCounselor", "MAJOR", "ELECTIVE").forEach(c => add(c, "미술심리상담사(가천대) 전공선택", 4));
+  }
 
-  if (need("comp-common-elective")) candidates("comprehensiveExam", "COMMON", "ELECTIVE").forEach(c => add(c, "종합시험 공통 선택", 9, 3));
-  if (need("comp-major-required")) candidates("comprehensiveExam", "MAJOR", "REQUIRED").forEach(c => add(c, "종합시험 전공 필수", 12, 3));
+  if (need("comp-common-elective")) candidates("comprehensiveExam", "COMMON", "ELECTIVE").forEach(c => add(c, "종합시험 공통선택", 9, 3));
+  if (need("comp-major-required")) candidates("comprehensiveExam", "MAJOR", "REQUIRED").forEach(c => add(c, "종합시험 전공필수", 12, 3));
 
   if (profile.track === "NON_THESIS" && need("graduation-exam-major-required")) {
-    candidates("graduationExam", "MAJOR", "REQUIRED").forEach(c => add(c, "졸업시험 전공 필수", 12, 4));
+    candidates("graduationExam", "MAJOR", "REQUIRED").forEach(c => add(c, "졸업시험 전공필수", 12, 4));
   }
 
   if (profile.track === "THESIS" && need("proposal-common-elective")) {
-    candidates("proposal", "COMMON", "ELECTIVE").forEach(c => add(c, "프로포절 공통 선택", 10, 4));
+    candidates("proposal", "COMMON", "ELECTIVE").forEach(c => add(c, "프로포절 공통선택", 10, 4));
   }
 
   if (need("graduation-common")) COURSES.filter(c => c.category === "COMMON").forEach(c => add(c, "졸업 공통 학점", 1, 5));
