@@ -18,6 +18,7 @@ type Filter =
   | "MAJOR"
   | "REQUIRED"
   | "COMPLETED"
+  | "GRADUATION"
   | "VOUCHER"
   | "CERT"
   | "COMP"
@@ -29,6 +30,7 @@ function courseBadges(course: (typeof COURSES)[number]) {
   const cat = course.category === "COMMON" ? "공통" : "전공";
   const mark = (value: string) => (value === "REQUIRED" ? "필수" : "선택");
 
+  if (course.graduation !== "NONE") badges.push(`졸업 ${cat}${mark(course.graduation)}`);
   if (course.developmentVoucher !== "NONE") badges.push(`발달바우처 ${cat}${mark(course.developmentVoucher)}`);
   if (course.artPsychCounselor !== "NONE") badges.push(`미술심리상담사(가천대) ${cat}${mark(course.artPsychCounselor)}`);
   if (course.comprehensiveExam !== "NONE") badges.push(`종합시험 ${cat}${mark(course.comprehensiveExam)}`);
@@ -176,7 +178,8 @@ export default function Home() {
         filter === "ALL" ||
         (filter === "COMMON" && course.category === "COMMON") ||
         (filter === "MAJOR" && course.category === "MAJOR") ||
-        (filter === "REQUIRED" && [course.developmentVoucher, course.artPsychCounselor, course.comprehensiveExam, course.graduationExam].includes("REQUIRED")) ||
+        (filter === "REQUIRED" && [course.graduation, course.developmentVoucher, course.artPsychCounselor, course.comprehensiveExam, course.graduationExam].includes("REQUIRED")) ||
+        (filter === "GRADUATION" && course.graduation !== "NONE") ||
         (filter === "VOUCHER" && course.developmentVoucher !== "NONE") ||
         (filter === "CERT" && course.artPsychCounselor !== "NONE") ||
         (filter === "COMP" && course.comprehensiveExam !== "NONE") ||
@@ -308,6 +311,7 @@ export default function Home() {
     ["ALL","전체"], ["COMMON","공통"], ["MAJOR","전공"], ["REQUIRED","필수 포함 과목"], ["COMPLETED",`이수한 과목 (${completed.length})`],
   ];
   const requirementFilters: [Filter,string][] = [
+    ["GRADUATION","졸업"],
     ["VOUCHER","발달바우처"],
     ["CERT","미술심리상담사(가천대)"],
     ["COMP","종합시험"],
@@ -480,7 +484,7 @@ export default function Home() {
                 </div>
               </summary>
               <div className="requirement-items">
-                {group.items.map(item => <RequirementItem item={item} completedSet={completedSet} showCourses={group.key !== "graduation"} key={item.key} />)}
+                {group.items.map(item => <RequirementItem item={item} completedSet={completedSet} showCourses={true} key={item.key} />)}
               </div>
             </details>
           ))}
@@ -488,7 +492,25 @@ export default function Home() {
       </section>
 
       <section className="card recommendation-section"><h2 className="section-title">5. 추천 수강과목</h2><p className="small recommendation-guide">위에서 선택한 목표와 수강한 과목에 따라 맞춤으로 추천 과목 리스트가 결정됩니다.</p>
-        <div className="recommendation-list">{recommendations.length === 0 ? <div className="empty">현재 추천할 미이수 과목이 없습니다.</div> : recommendations.map((rec,index) => <div className={`rec ${rec.course.category === "COMMON" ? "rec-common" : "rec-major"}`} key={rec.course.id}><div className="rec-top"><div><strong>{index+1}. {rec.course.name}</strong><div className="small">{rec.course.category === "COMMON" ? "공통" : "전공"} · {rec.course.credits}학점</div></div><div className="score">추천점수 <strong>{rec.score.toFixed(1)}</strong> / 10</div></div><div className="rec-reasons">{rec.reasons.map(reason => <span key={reason} className={`reason ${requirementColorClass(reason)} ${rec.priority === "URGENT" ? "urgent" : ""}`}>{reason}</span>)}</div></div>)}</div>
+        <div className="recommendation-list">{recommendations.length === 0 ? <div className="empty">현재 추천할 미이수 과목이 없습니다.</div> : recommendations.map((rec,index) => <div className={`rec ${rec.course.category === "COMMON" ? "rec-common" : "rec-major"}`} key={rec.course.id}><div className="rec-top"><div><strong>{index+1}. {rec.course.name}</strong><div className="small">{rec.course.category === "COMMON" ? "공통" : "전공"} · {rec.course.credits}학점</div></div><div className="score">추천점수 <strong>{rec.score.toFixed(1)}</strong> / 10</div></div><div className="rec-reasons">
+  {[...rec.reasons]
+    .sort((a, b) => {
+      const order = (reason: string) => {
+        if (reason.startsWith("졸업 ")) return 0;
+        if (reason.includes("발달바우처")) return 1;
+        return 2;
+      };
+      return order(a) - order(b);
+    })
+    .map(reason => (
+      <span
+        key={reason}
+        className={`reason ${requirementColorClass(reason)} ${rec.priority === "URGENT" ? "urgent" : ""}`}
+      >
+        {reason}
+      </span>
+    ))}
+</div></div>)}</div>
       </section>
 
       <footer className="developer-footer">Designed &amp; Developed by Hui</footer>
