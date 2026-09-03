@@ -101,7 +101,7 @@ export const COURSES: Course[] = [
   { id:"C047", name:"집단미술치료", credits:2, category:"MAJOR", graduation:"ELECTIVE", developmentVoucher:"ELECTIVE", artPsychCounselor:"ELECTIVE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"NONE" },
   { id:"C048", name:"창조적 미술치료", credits:2, category:"MAJOR", graduation:"ELECTIVE", developmentVoucher:"ELECTIVE", artPsychCounselor:"NONE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"NONE" },
   { id:"C049", name:"부모교육 및 상담", credits:2, category:"MAJOR", graduation:"NONE", developmentVoucher:"ELECTIVE", artPsychCounselor:"NONE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"NONE" },
-  { id:"C050", name:"미술재활세미나", credits:2, category:"MAJOR", graduation:"NONE", developmentVoucher:"ELECTIVE", artPsychCounselor:"NONE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"NONE" },
+  { id:"C050", name:"미술재활세미나", credits:2, category:"MAJOR", graduation:"ELECTIVE", developmentVoucher:"ELECTIVE", artPsychCounselor:"NONE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"NONE" },
   { id:"C051", name:"미술심리학", credits:2, category:"MAJOR", graduation:"NONE", developmentVoucher:"ELECTIVE", artPsychCounselor:"NONE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"NONE" },
   { id:"C052", name:"아동미술교육", credits:2, category:"MAJOR", graduation:"ELECTIVE", developmentVoucher:"ELECTIVE", artPsychCounselor:"NONE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"NONE" },
   { id:"C053", name:"미술재활프로그램개발및평가", credits:2, category:"MAJOR", graduation:"ELECTIVE", developmentVoucher:"ELECTIVE", artPsychCounselor:"NONE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"NONE" },
