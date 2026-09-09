@@ -83,12 +83,12 @@ export const COURSES: Course[] = [
   { id:"C029", name:"미술매체연구", credits:2, category:"MAJOR", graduation:"REQUIRED", developmentVoucher:"ELECTIVE", artPsychCounselor:"REQUIRED", comprehensiveExam:"NONE", graduationExam:"REQUIRED", proposal:"NONE" },
   { id:"C030", name:"미술심리상담사윤리", credits:2, category:"MAJOR", graduation:"ELECTIVE", developmentVoucher:"ELECTIVE", artPsychCounselor:"NONE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"NONE" },
   { id:"C031", name:"미술치료 사례연구", credits:2, category:"MAJOR", graduation:"ELECTIVE", developmentVoucher:"ELECTIVE", artPsychCounselor:"ELECTIVE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"NONE" },
-  { id:"C032", name:"미술치료 연구방법", credits:2, category:"MAJOR", graduation:"ELECTIVE", developmentVoucher:"ELECTIVE", artPsychCounselor:"NONE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"NONE" },
+  { id:"C032", name:"미술치료 연구방법", credits:2, category:"MAJOR", graduation:"ELECTIVE", developmentVoucher:"ELECTIVE", artPsychCounselor:"NONE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"ELECTIVE" },
   { id:"C033", name:"미술치료 연구방법 세미나 I", credits:3, category:"MAJOR", graduation:"ELECTIVE", developmentVoucher:"NONE", artPsychCounselor:"NONE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"NONE" },
   { id:"C034", name:"미술치료 연구방법 세미나 II", credits:3, category:"MAJOR", graduation:"ELECTIVE", developmentVoucher:"NONE", artPsychCounselor:"NONE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"NONE" },
   { id:"C035", name:"미술치료 표현기법", credits:2, category:"MAJOR", graduation:"ELECTIVE", developmentVoucher:"ELECTIVE", artPsychCounselor:"ELECTIVE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"NONE" },
   { id:"C036", name:"미술치료개론", credits:2, category:"MAJOR", graduation:"REQUIRED", developmentVoucher:"REQUIRED", artPsychCounselor:"REQUIRED", comprehensiveExam:"REQUIRED", graduationExam:"NONE", proposal:"NONE" },
-  { id:"C037", name:"미술치료연구동향분석", credits:2, category:"MAJOR", graduation:"ELECTIVE", developmentVoucher:"NONE", artPsychCounselor:"ELECTIVE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"NONE" },
+  { id:"C037", name:"미술치료연구동향분석", credits:2, category:"MAJOR", graduation:"ELECTIVE", developmentVoucher:"NONE", artPsychCounselor:"ELECTIVE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"ELECTIVE" },
   { id:"C038", name:"미학", credits:2, category:"MAJOR", graduation:"ELECTIVE", developmentVoucher:"NONE", artPsychCounselor:"ELECTIVE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"NONE" },
   { id:"C039", name:"색채심리학", credits:2, category:"MAJOR", graduation:"ELECTIVE", developmentVoucher:"ELECTIVE", artPsychCounselor:"ELECTIVE", comprehensiveExam:"NONE", graduationExam:"NONE", proposal:"NONE" },
   { id:"C040", name:"아동 및 청소년 미술치료", credits:2, category:"MAJOR", graduation:"REQUIRED", developmentVoucher:"ELECTIVE", artPsychCounselor:"REQUIRED", comprehensiveExam:"NONE", graduationExam:"REQUIRED", proposal:"NONE" },
@@ -190,7 +190,7 @@ export function analyzeRequirements(profile: StudentProfile): RequirementSummary
   const compCommonCourses = candidates("comprehensiveExam", "COMMON", "ELECTIVE");
   const compMajorCourses = candidates("comprehensiveExam", "MAJOR", "REQUIRED");
   const graduationExamCourses = candidates("graduationExam", "MAJOR", "REQUIRED");
-  const proposalCourses = candidates("proposal", "COMMON", "ELECTIVE");
+  const proposalCourses = COURSES.filter(c => c.proposal !== "NONE");
 
   const developmentVoucher: CheckItem[] = [
     check("voucher-common-required", "공통필수", countCompleted(profile, voucherCommonRequiredCourses), voucherCommonRequiredTarget, "과목", undefined, voucherCommonRequiredCourses.map(c => c.id)),
@@ -206,6 +206,7 @@ export function analyzeRequirements(profile: StudentProfile): RequirementSummary
     check("cert-major-elective", "전공선택", countCompleted(profile, certMajorElectiveCourses), 3, "과목", undefined, certMajorElectiveCourses.map(c => c.id)),
   ];
 
+
   const comprehensiveExam: CheckItem[] = [
     check("comp-common-elective", "공통선택", countCompleted(profile, compCommonCourses), 1, "과목", 3, compCommonCourses.map(c => c.id)),
     check("comp-major-required", "전공필수", countCompleted(profile, compMajorCourses), 2, "과목", 3, compMajorCourses.map(c => c.id)),
@@ -216,7 +217,7 @@ export function analyzeRequirements(profile: StudentProfile): RequirementSummary
     : [];
 
   const proposal: CheckItem[] = profile.track === "THESIS"
-    ? [check("proposal-common-elective", "공통선택", countCompleted(profile, proposalCourses), 2, "과목", 4, proposalCourses.map(c => c.id))]
+    ? [check("proposal-elective", "인정 과목", countCompleted(profile, proposalCourses), 2, "과목", 4, proposalCourses.map(c => c.id))]
     : [];
 
   return {
@@ -296,6 +297,7 @@ export function recommendCourses(profile: StudentProfile): CourseRecommendation[
     if (need("cert-major-elective")) candidates("artPsychCounselor", "MAJOR", "ELECTIVE").forEach(c => add(c, "미술심리상담사(가천대) 전공선택", 4));
   }
 
+
   if (need("comp-common-elective")) candidates("comprehensiveExam", "COMMON", "ELECTIVE").forEach(c => add(c, "종합시험 공통선택", 9, 3));
   if (need("comp-major-required")) candidates("comprehensiveExam", "MAJOR", "REQUIRED").forEach(c => add(c, "종합시험 전공필수", 12, 3));
 
@@ -303,8 +305,8 @@ export function recommendCourses(profile: StudentProfile): CourseRecommendation[
     candidates("graduationExam", "MAJOR", "REQUIRED").forEach(c => add(c, "졸업시험 전공필수", 12, 4));
   }
 
-  if (profile.track === "THESIS" && need("proposal-common-elective")) {
-    candidates("proposal", "COMMON", "ELECTIVE").forEach(c => add(c, "프로포절 공통선택", 10, 4));
+  if (profile.track === "THESIS" && need("proposal-elective")) {
+    COURSES.filter(c => c.proposal !== "NONE").forEach(c => add(c, "프로포절 인정 과목", 10, 4));
   }
 
   const graduationReason = (course: Course) => {

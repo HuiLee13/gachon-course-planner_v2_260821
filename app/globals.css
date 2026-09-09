@@ -805,3 +805,333 @@ select {
     margin-left: 0;
   }
 }
+
+/* ---------- 260908: 대시보드 + 탭 + 목표 중심 UX ---------- */
+.app-shell { padding-top: 26px; }
+
+.app-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.hero-subtitle {
+  margin: 7px 0 0;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.main-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0 0 18px;
+  padding: 6px;
+  background: rgba(246,247,249,.96);
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
+}
+
+.main-tab {
+  min-height: 42px;
+  padding: 9px 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: #667085;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.main-tab:hover { background: #fff; color: #344054; }
+
+.main-tab.active {
+  background: #111827;
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(16,24,40,.08);
+}
+
+.tab-panel { animation: plannerFadeIn .14s ease-out; }
+
+@keyframes plannerFadeIn {
+  from { opacity: .72; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.section-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.section-heading-row .section-title { margin-bottom: 3px; }
+.section-subtitle { margin: 0; }
+
+.text-action {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 9px;
+  color: #475467;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.text-action:hover { background: #f9fafb; }
+
+/* 대시보드 */
+.dashboard-summary-card { margin-bottom: 18px; }
+
+.dashboard-goals-section {
+  margin-top: 2px;
+  margin-bottom: 18px;
+}
+.dashboard-goal-heading { margin: 0 0 10px; }
+
+.goal-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.goal-dashboard-card {
+  width: 100%;
+  min-width: 0;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  color: inherit;
+  text-align: left;
+}
+
+.goal-dashboard-card:hover {
+  border-color: #cfd4dc;
+  box-shadow: 0 3px 10px rgba(16,24,40,.05);
+}
+
+.goal-dashboard-top,
+.goal-dashboard-progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.goal-dashboard-title {
+  color: #101828;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.goal-dashboard-note {
+  margin-top: 3px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.goal-dashboard-progress-row { margin-top: 14px; }
+.goal-dashboard-progress-row strong { font-size: 24px; }
+.goal-dashboard-progress-row span { color: #667085; font-size: 12px; }
+.dashboard-progress { margin-top: 8px; }
+
+.goal-graduation { border-top: 5px solid #D0D0D0; }
+.goal-developmentVoucher { border-top: 5px solid #B8CFE3; }
+.goal-artPsychCounselor { border-top: 5px solid #BFD5B1; }
+.goal-comprehensiveExam { border-top: 5px solid #ECD887; }
+.goal-proposal,
+.goal-graduationExam { border-top: 5px solid #EDC5AE; }
+
+/* 요건 탭 */
+.requirements-panel {
+  min-height: 420px;
+}
+
+.requirements-status-section,
+.requirements-progress-section,
+.requirements-completed-section {
+  margin-bottom: 18px;
+}
+
+.requirements-status-section > .section-title {
+  margin-bottom: 14px;
+}
+
+.requirements-credit-summary {
+  margin-bottom: 0;
+}
+
+.requirements-completed-heading {
+  margin-bottom: 10px;
+}
+
+.requirements-completed-courses {
+  margin-top: 4px;
+}
+
+.requirement-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 -2px 14px;
+  padding: 2px 2px 6px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.requirement-tab {
+  flex: 0 0 auto;
+  padding: 8px 11px;
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  color: #475467;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.requirement-tab.active {
+  color: #101828;
+  border-color: #98a2b3;
+  box-shadow: inset 0 0 0 1px #98a2b3;
+}
+
+.requirement-tab-graduation.active { background: #E7E6E6; }
+.requirement-tab-developmentVoucher.active { background: #DDEBF7; }
+.requirement-tab-artPsychCounselor.active { background: #E2EFDA; }
+.requirement-tab-comprehensiveExam.active { background: #FFF2CC; }
+.requirement-tab-proposal.active,
+.requirement-tab-graduationExam.active { background: #FCE4D6; }
+
+.requirement-detail {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+}
+
+.requirement-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border-bottom: 1px solid #eef0f2;
+}
+
+.requirement-detail-head h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.requirement-detail-head .requirement-summary {
+  margin: 6px 0 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.requirement-detail-percent {
+  flex: 0 0 auto;
+  font-size: 25px;
+  font-weight: 700;
+}
+
+.requirement-detail.requirement-graduation .requirement-detail-head { background: #E7E6E6; }
+.requirement-detail.requirement-developmentVoucher .requirement-detail-head { background: #DDEBF7; }
+.requirement-detail.requirement-artPsychCounselor .requirement-detail-head { background: #E2EFDA; }
+.requirement-detail.requirement-comprehensiveExam .requirement-detail-head { background: #FFF2CC; }
+.requirement-detail.requirement-proposal .requirement-detail-head,
+.requirement-detail.requirement-graduationExam .requirement-detail-head { background: #FCE4D6; }
+
+.requirement-source-note {
+  margin: 12px 16px 0;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  color: #475467;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+/* 탭 전환 후 카드 중복 여백 방지 */
+.tab-panel.card { margin-bottom: 18px; }
+
+@media (max-width: 760px) {
+  .app-header h1 { font-size: 24px; line-height: 1.3; }
+
+  .main-tabs {
+    grid-template-columns: repeat(4, minmax(84px, 1fr));
+    overflow-x: auto;
+  }
+
+  .main-tab { font-size: 13px; }
+
+  .goal-dashboard-grid { grid-template-columns: 1fr; }
+
+  .section-heading-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .text-action { align-self: flex-start; }
+
+  .requirement-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0 0 14px;
+    padding: 0;
+    overflow-x: visible;
+  }
+
+  .requirement-tab {
+    width: 100%;
+    min-width: 0;
+    white-space: normal;
+    line-height: 1.35;
+    text-align: center;
+  }
+
+  /* 과목 선택 탭: 모바일 필터를 화면 폭에 맞게 2열 배치 */
+  .filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+
+  .filter-btn,
+  .clear-all-btn {
+    width: 100%;
+    min-width: 0;
+    margin-left: 0;
+    white-space: normal;
+    line-height: 1.35;
+    text-align: center;
+  }
+
+  .requirement-detail-head {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
+  .container { padding-left: 14px; padding-right: 14px; }
+  .main-tabs { gap: 4px; padding: 5px; }
+  .main-tab { min-height: 40px; padding: 8px 9px; }
+  .goal-dashboard-card { padding: 14px; }
+  .requirement-detail-percent { font-size: 22px; }
+}

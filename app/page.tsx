@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   analyzeRequirements,
   COURSES,
@@ -12,6 +12,14 @@ import {
 } from "@/lib/coursePlanner";
 
 type Semester = 1 | 2 | 3 | 4 | 5;
+type MainTab = "DASHBOARD" | "COURSES" | "REQUIREMENTS" | "RECOMMENDATIONS";
+type RequirementKey =
+  | "graduation"
+  | "developmentVoucher"
+  | "artPsychCounselor"
+  | "comprehensiveExam"
+  | "graduationExam"
+  | "proposal";
 type Filter =
   | "ALL"
   | "COMMON"
@@ -25,6 +33,29 @@ type Filter =
   | "GRAD_EXAM"
   | "PROPOSAL";
 
+const STORAGE_KEY = "gachon-course-planner-v2";
+
+interface SavedPlannerState {
+  semester: Semester;
+  selectedSemesters?: Semester[];
+  track: Track;
+  developmentVoucherSelected?: boolean;
+  artPsychCounselorSelected?: boolean;
+  completed: string[];
+  courseSemesters?: Partial<Record<string, Semester>>;
+}
+
+interface RequirementGroup {
+  key: RequirementKey;
+  title: string;
+  shortTitle: string;
+  titleNote?: string;
+  description: ReactNode;
+  items: CheckItem[];
+  selected: boolean;
+  sourceNote?: string;
+}
+
 function courseBadges(course: (typeof COURSES)[number]) {
   const badges: string[] = [];
   const cat = course.category === "COMMON" ? "공통" : "전공";
@@ -35,13 +66,13 @@ function courseBadges(course: (typeof COURSES)[number]) {
   if (course.artPsychCounselor !== "NONE") badges.push(`미술심리상담사(가천대) ${cat}${mark(course.artPsychCounselor)}`);
   if (course.comprehensiveExam !== "NONE") badges.push(`종합시험 ${cat}${mark(course.comprehensiveExam)}`);
   if (course.graduationExam !== "NONE") badges.push(`졸업시험 ${cat}${mark(course.graduationExam)}`);
-  if (course.proposal !== "NONE") badges.push(`프로포절 ${cat}${mark(course.proposal)}`);
+  if (course.proposal !== "NONE") badges.push("프로포절 인정과목");
   return badges;
 }
 
 function requirementColorClass(text: string) {
   if (text.includes("발달바우처")) return "requirement-color-voucher";
-  if (text.includes("미술심리상담사")) return "requirement-color-counselor";
+  if (text.includes("미술심리상담사(가천대)")) return "requirement-color-counselor";
   if (text.includes("종합시험")) return "requirement-color-comprehensive";
   if (text.includes("프로포절")) return "requirement-color-proposal";
   if (text.includes("졸업시험")) return "requirement-color-graduation-exam";
@@ -53,7 +84,7 @@ function CompactStatus({ completed }: { completed: boolean }) {
   return <span className={`compact-status ${completed ? "ok" : "no"}`}>{completed ? "충족" : "미충족"}</span>;
 }
 
-function RequirementItem({ item, completedSet, showCourses }: { item: CheckItem; completedSet: Set<string>; showCourses: boolean }) {
+function RequirementItem({ item, completedSet }: { item: CheckItem; completedSet: Set<string> }) {
   const pct = item.required === 0 ? 100 : Math.min(100, Math.round((item.current / item.required) * 100));
   const courseItems = (item.courseIds ?? [])
     .map(id => COURSES.find(course => course.id === id))
@@ -71,13 +102,17 @@ function RequirementItem({ item, completedSet, showCourses }: { item: CheckItem;
       </div>
       <div className="progress"><div style={{ width: `${pct}%` }} /></div>
 
-      {showCourses && courseItems.length > 0 && (
+      {courseItems.length > 0 && (
         <div className="requirement-course-area">
           <div className="requirement-course-label">이수 대상 과목</div>
           <div className="requirement-course-list">
             {courseItems.map(course => {
               const done = completedSet.has(course.id);
-              return <span className={`requirement-course ${done ? "done" : ""}`} key={course.id}>{done ? "✓ " : ""}{course.name}</span>;
+              return (
+                <span className={`requirement-course ${done ? "done" : ""}`} key={course.id}>
+                  {done ? "✓ " : ""}{course.name}
+                </span>
+              );
             })}
           </div>
         </div>
@@ -86,19 +121,21 @@ function RequirementItem({ item, completedSet, showCourses }: { item: CheckItem;
   );
 }
 
-const STORAGE_KEY = "gachon-course-planner-v2";
+function getGroupProgress(items: CheckItem[]) {
+  if (items.length === 0) return 100;
+  const required = items.reduce((sum, item) => sum + item.required, 0);
+  if (required === 0) return 100;
+  const current = items.reduce((sum, item) => sum + Math.min(item.current, item.required), 0);
+  return Math.min(100, Math.round((current / required) * 100));
+}
 
-interface SavedPlannerState {
-  semester: Semester;
-  selectedSemesters?: Semester[];
-  track: Track;
-  developmentVoucherSelected?: boolean;
-  artPsychCounselorSelected?: boolean;
-  completed: string[];
-  courseSemesters?: Partial<Record<string, Semester>>;
+function isGroupCompleted(items: CheckItem[]) {
+  return items.length > 0 && items.every(item => item.completed);
 }
 
 export default function Home() {
+  const [mainTab, setMainTab] = useState<MainTab>("DASHBOARD");
+  const [activeRequirement, setActiveRequirement] = useState<RequirementKey>("graduation");
   const [selectedSemesters, setSelectedSemesters] = useState<Semester[]>([1]);
   const semester = selectedSemesters.length > 0 ? Math.max(...selectedSemesters) as Semester : 1;
   const [track, setTrack] = useState<Track>("THESIS");
@@ -119,19 +156,21 @@ export default function Home() {
         const restoredSemesters = Array.isArray(saved.selectedSemesters)
           ? saved.selectedSemesters.filter((value): value is Semester => [1,2,3,4,5].includes(Number(value)))
           : [];
-        setSelectedSemesters(restoredSemesters.length > 0 ? Array.from(new Set(restoredSemesters)).sort((a, b) => a - b) : [savedSemester]);
+
+        setSelectedSemesters(
+          restoredSemesters.length > 0
+            ? Array.from(new Set(restoredSemesters)).sort((a, b) => a - b)
+            : [savedSemester]
+        );
         if (saved.track === "THESIS" || saved.track === "NON_THESIS") setTrack(saved.track);
-        if (typeof saved.developmentVoucherSelected === "boolean") {
-          setDevelopmentVoucherSelected(saved.developmentVoucherSelected);
-        }
-        if (typeof saved.artPsychCounselorSelected === "boolean") {
-          setArtPsychCounselorSelected(saved.artPsychCounselorSelected);
-        }
+        if (typeof saved.developmentVoucherSelected === "boolean") setDevelopmentVoucherSelected(saved.developmentVoucherSelected);
+        if (typeof saved.artPsychCounselorSelected === "boolean") setArtPsychCounselorSelected(saved.artPsychCounselorSelected);
 
         if (Array.isArray(saved.completed)) {
           const validIds = new Set(COURSES.map(course => course.id));
           const validCompleted = saved.completed.filter(id => validIds.has(id));
           setCompleted(validCompleted);
+
           const restored: Partial<Record<string, Semester>> = {};
           validCompleted.forEach(id => {
             const stored = saved.courseSemesters?.[id];
@@ -149,9 +188,20 @@ export default function Home() {
 
   useEffect(() => {
     if (!storageReady) return;
-    const data: SavedPlannerState = { semester, selectedSemesters, track, developmentVoucherSelected, artPsychCounselorSelected, completed, courseSemesters };
-    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
-    catch (error) { console.warn("이수 정보를 저장하지 못했습니다.", error); }
+    const data: SavedPlannerState = {
+      semester,
+      selectedSemesters,
+      track,
+      developmentVoucherSelected,
+      artPsychCounselorSelected,
+      completed,
+      courseSemesters,
+    };
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (error) {
+      console.warn("이수 정보를 저장하지 못했습니다.", error);
+    }
   }, [semester, selectedSemesters, track, developmentVoucherSelected, artPsychCounselorSelected, completed, courseSemesters, storageReady]);
 
   const profile: StudentProfile = {
@@ -161,10 +211,85 @@ export default function Home() {
     artPsychCounselorSelected,
     completedCourseIds: completed,
   };
-  const summary = useMemo(() => analyzeRequirements(profile), [semester, track, developmentVoucherSelected, artPsychCounselorSelected, completed]);
+
+  const summary = useMemo(
+    () => analyzeRequirements(profile),
+    [semester, track, developmentVoucherSelected, artPsychCounselorSelected, completed]
+  );
   const credits = useMemo(() => getCreditSummary(profile), [completed]);
-  const recommendations = useMemo(() => recommendCourses(profile).slice(0, 10), [semester, track, developmentVoucherSelected, artPsychCounselorSelected, completed]);
+  const recommendations = useMemo(
+    () => recommendCourses(profile).slice(0, 10),
+    [semester, track, developmentVoucherSelected, artPsychCounselorSelected, completed]
+  );
   const completedSet = useMemo(() => new Set(completed), [completed]);
+
+  const findRequirement = (items: CheckItem[], key: string) => items.find(item => item.key === key);
+  const itemCompleted = (items: CheckItem[], key: string) => Boolean(findRequirement(items, key)?.completed);
+
+  const requirementGroups: RequirementGroup[] = [
+    {
+      key: "graduation",
+      title: "졸업",
+      shortTitle: "졸업",
+      titleNote: track === "THESIS" ? "논문트랙" : "비논문트랙",
+      description: track === "THESIS"
+        ? <><span>공통 8학점 이상 <CompactStatus completed={itemCompleted(summary.graduation, "graduation-common")} /></span><span className="summary-separator">·</span><span>전공 16학점 이상 <CompactStatus completed={itemCompleted(summary.graduation, "graduation-major")} /></span></>
+        : <><span>공통 10학점 이상 <CompactStatus completed={itemCompleted(summary.graduation, "graduation-common")} /></span><span className="summary-separator">·</span><span>전공 20학점 이상 <CompactStatus completed={itemCompleted(summary.graduation, "graduation-major")} /></span></>,
+      items: summary.graduation,
+      selected: true,
+    },
+    {
+      key: "developmentVoucher",
+      title: "발달바우처",
+      shortTitle: "발달바우처",
+      description: <><span>공통필수 1과목 <CompactStatus completed={itemCompleted(summary.developmentVoucher, "voucher-common-required")} /></span><span className="summary-separator">·</span><span>공통선택 1과목 <CompactStatus completed={itemCompleted(summary.developmentVoucher, "voucher-common-elective")} /></span><span className="summary-separator">·</span><span>전공필수 3과목 <CompactStatus completed={itemCompleted(summary.developmentVoucher, "voucher-major-required")} /></span><span className="summary-separator">·</span><span>전공선택 6과목 <CompactStatus completed={itemCompleted(summary.developmentVoucher, "voucher-major-elective")} /></span></>,
+      items: summary.developmentVoucher,
+      selected: developmentVoucherSelected,
+    },
+    {
+      key: "artPsychCounselor",
+      title: "미술심리상담사(가천대)",
+      shortTitle: "미술심리상담사(가천대)",
+      description: <><span>공통필수 1과목 <CompactStatus completed={itemCompleted(summary.artPsychCounselor, "cert-common-required")} /></span><span className="summary-separator">·</span><span>공통선택 3과목 <CompactStatus completed={itemCompleted(summary.artPsychCounselor, "cert-common-elective")} /></span><span className="summary-separator">·</span><span>전공필수 5과목 <CompactStatus completed={itemCompleted(summary.artPsychCounselor, "cert-major-required")} /></span><span className="summary-separator">·</span><span>전공선택 3과목 <CompactStatus completed={itemCompleted(summary.artPsychCounselor, "cert-major-elective")} /></span></>,
+      items: summary.artPsychCounselor,
+      selected: artPsychCounselorSelected,
+    },
+    {
+      key: "comprehensiveExam",
+      title: "종합시험",
+      shortTitle: "종합시험",
+      titleNote: "4학차 응시",
+      description: <><span>3학차까지 공통선택 1과목 <CompactStatus completed={itemCompleted(summary.comprehensiveExam, "comp-common-elective")} /></span><span className="summary-separator">·</span><span>전공필수 2과목 <CompactStatus completed={itemCompleted(summary.comprehensiveExam, "comp-major-required")} /></span></>,
+      items: summary.comprehensiveExam,
+      selected: true,
+    },
+    {
+      key: "graduationExam",
+      title: "졸업시험",
+      shortTitle: "졸업시험",
+      titleNote: "비논문트랙 · 5학차 응시",
+      description: <><span>4학차까지 전공필수 3과목 <CompactStatus completed={itemCompleted(summary.graduationExam, "graduation-exam-major-required")} /></span></>,
+      items: summary.graduationExam,
+      selected: track === "NON_THESIS",
+    },
+    {
+      key: "proposal",
+      title: "프로포절",
+      shortTitle: "프로포절",
+      titleNote: "논문트랙",
+      description: <><span>4학차까지 프로포절 인정 5과목 중 2과목 이상 이수 <CompactStatus completed={itemCompleted(summary.proposal, "proposal-elective")} /></span></>,
+      items: summary.proposal,
+      selected: track === "THESIS",
+    },
+  ];
+
+  const visibleRequirementGroups = requirementGroups.filter(group => group.selected);
+  const activeGroup = visibleRequirementGroups.find(group => group.key === activeRequirement) ?? visibleRequirementGroups[0];
+
+  const openRequirement = (key: RequirementKey) => {
+    setActiveRequirement(key);
+    setMainTab("REQUIREMENTS");
+  };
 
   const visibleCourses = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -187,10 +312,7 @@ export default function Home() {
         (filter === "PROPOSAL" && course.proposal !== "NONE");
       return matchesSearch && matchesFilter;
     }).sort((a, b) => {
-      // 1차: 공통 → 전공, 2차: 각 그룹 안에서 과목명 가나다순
-      if (a.category !== b.category) {
-        return a.category === "COMMON" ? -1 : 1;
-      }
+      if (a.category !== b.category) return a.category === "COMMON" ? -1 : 1;
       return a.name.localeCompare(b.name, "ko-KR");
     });
   }, [search, filter, completedSet]);
@@ -199,38 +321,13 @@ export default function Home() {
   const commonVisibleCourses = useMemo(() => visibleCourses.filter(course => course.category === "COMMON"), [visibleCourses]);
   const majorVisibleCourses = useMemo(() => visibleCourses.filter(course => course.category === "MAJOR"), [visibleCourses]);
 
-  const renderCourseItem = (course: (typeof COURSES)[number]) => {
-    const isCompleted = completedSet.has(course.id);
-    return (
-      <div className={`course-item ${course.category === "COMMON" ? "course-common" : "course-major"}`} key={course.id}>
-        <input type="checkbox" aria-label={`${course.name} 이수 여부`} checked={isCompleted} onChange={() => toggleCourse(course.id)} />
-        <div className="course-content">
-          <div className="course-name-row">
-            <div>
-              <div className="course-name">{course.name}</div>
-              <div className="meta">{course.category === "COMMON" ? "공통" : "전공"} · {course.credits}학점</div>
-            </div>
-            {isCompleted && (
-              <label className="semester-picker">
-                <span>이수 학차</span>
-                <select value={courseSemesters[course.id] ?? ""} onChange={e => changeCourseSemester(course.id, e.target.value)}>
-                  <option value="">학차 선택</option>
-                  {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}학차</option>)}
-                </select>
-              </label>
-            )}
-          </div>
-          <div className="badges">{courseBadges(course).map(badge => <span className={`badge ${requirementColorClass(badge)}`} key={badge}>{badge}</span>)}</div>
-        </div>
-      </div>
-    );
-  };
-
   const toggleCourse = (id: string) => {
     setCompleted(prev => {
       if (prev.includes(id)) {
         setCourseSemesters(current => {
-          const next = { ...current }; delete next[id]; return next;
+          const next = { ...current };
+          delete next[id];
+          return next;
         });
         return prev.filter(courseId => courseId !== id);
       }
@@ -253,59 +350,41 @@ export default function Home() {
     );
   };
 
-  const clearCompleted = () => { setCompleted([]); setCourseSemesters({}); };
+  const clearCompleted = () => {
+    setCompleted([]);
+    setCourseSemesters({});
+  };
 
-  const findRequirement = (items: CheckItem[], key: string) => items.find(item => item.key === key);
-  const itemCompleted = (items: CheckItem[], key: string) => Boolean(findRequirement(items, key)?.completed);
-
-  const requirementGroups = [
-    {
-      key:"graduation",
-      title:"졸업",
-      titleNote: track === "THESIS" ? "논문트랙" : "비논문트랙",
-      description: track === "THESIS"
-        ? <><span>공통 8학점 이상 <CompactStatus completed={itemCompleted(summary.graduation, "graduation-common")} /></span><span className="summary-separator">·</span><span>전공 16학점 이상 <CompactStatus completed={itemCompleted(summary.graduation, "graduation-major")} /></span></>
-        : <><span>공통 10학점 이상 <CompactStatus completed={itemCompleted(summary.graduation, "graduation-common")} /></span><span className="summary-separator">·</span><span>전공 20학점 이상 <CompactStatus completed={itemCompleted(summary.graduation, "graduation-major")} /></span></>,
-      items:summary.graduation,
-    },
-    {
-      key:"developmentVoucher",
-      title:"발달바우처",
-      description:<><span>공통필수 1과목 <CompactStatus completed={itemCompleted(summary.developmentVoucher, "voucher-common-required")} /></span><span className="summary-separator">·</span><span>공통선택 1과목 <CompactStatus completed={itemCompleted(summary.developmentVoucher, "voucher-common-elective")} /></span><span className="summary-separator">·</span><span>전공필수 3과목 <CompactStatus completed={itemCompleted(summary.developmentVoucher, "voucher-major-required")} /></span><span className="summary-separator">·</span><span>전공선택 6과목 <CompactStatus completed={itemCompleted(summary.developmentVoucher, "voucher-major-elective")} /></span></>,
-      items:summary.developmentVoucher,
-      hidden:!developmentVoucherSelected,
-    },
-    {
-      key:"artPsychCounselor",
-      title:"미술심리상담사(가천대)",
-      description:<><span>공통필수 1과목 <CompactStatus completed={itemCompleted(summary.artPsychCounselor, "cert-common-required")} /></span><span className="summary-separator">·</span><span>공통선택 3과목 <CompactStatus completed={itemCompleted(summary.artPsychCounselor, "cert-common-elective")} /></span><span className="summary-separator">·</span><span>전공필수 5과목 <CompactStatus completed={itemCompleted(summary.artPsychCounselor, "cert-major-required")} /></span><span className="summary-separator">·</span><span>전공선택 3과목 <CompactStatus completed={itemCompleted(summary.artPsychCounselor, "cert-major-elective")} /></span></>,
-      items:summary.artPsychCounselor,
-      hidden:!artPsychCounselorSelected,
-    },
-    {
-      key:"comprehensiveExam",
-      title:"종합시험",
-      titleNote:"4학차 응시",
-      description:<><span>3학차까지 공통선택 1과목 <CompactStatus completed={itemCompleted(summary.comprehensiveExam, "comp-common-elective")} /></span><span className="summary-separator">·</span><span>전공필수 2과목 <CompactStatus completed={itemCompleted(summary.comprehensiveExam, "comp-major-required")} /></span></>,
-      items:summary.comprehensiveExam,
-    },
-    {
-      key:"graduationExam",
-      title:"졸업시험",
-      titleNote:"비논문트랙만 해당 · 5학차 응시",
-      description:<><span>4학차까지 전공필수 3과목 <CompactStatus completed={itemCompleted(summary.graduationExam, "graduation-exam-major-required")} /></span></>,
-      items:summary.graduationExam,
-      hidden:track === "THESIS",
-    },
-    {
-      key:"proposal",
-      title:"프로포절",
-      titleNote:"논문트랙만 해당",
-      description:<><span>4학차까지 논문작성법/연구방법론/통계학 중 2과목 <CompactStatus completed={itemCompleted(summary.proposal, "proposal-common-elective")} /></span></>,
-      items:summary.proposal,
-      hidden:track === "NON_THESIS",
-    },
-  ].filter(group => !group.hidden);
+  const renderCourseItem = (course: (typeof COURSES)[number]) => {
+    const isCompleted = completedSet.has(course.id);
+    return (
+      <div className={`course-item ${course.category === "COMMON" ? "course-common" : "course-major"}`} key={course.id}>
+        <input type="checkbox" aria-label={`${course.name} 이수 여부`} checked={isCompleted} onChange={() => toggleCourse(course.id)} />
+        <div className="course-content">
+          <div className="course-name-row">
+            <div>
+              <div className="course-name">{course.name}</div>
+              <div className="meta">{course.category === "COMMON" ? "공통" : "전공"} · {course.credits}학점</div>
+            </div>
+            {isCompleted && (
+              <label className="semester-picker">
+                <span>이수 학차</span>
+                <select value={courseSemesters[course.id] ?? ""} onChange={e => changeCourseSemester(course.id, e.target.value)}>
+                  <option value="">학차 선택</option>
+                  {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}학차</option>)}
+                </select>
+              </label>
+            )}
+          </div>
+          <div className="badges">
+            {courseBadges(course).map(badge => (
+              <span className={`badge ${requirementColorClass(badge)}`} key={badge}>{badge}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const baseFilters: [Filter,string][] = [
     ["ALL","전체"], ["COMMON","공통"], ["MAJOR","전공"], ["REQUIRED","필수 포함 과목"], ["COMPLETED",`이수한 과목 (${completed.length})`],
@@ -319,199 +398,383 @@ export default function Home() {
     ["GRAD_EXAM","졸업시험"],
   ];
 
-  const highestSelectedSemester = selectedSemesters.length
-    ? Math.max(...selectedSemesters)
-    : null;
+  const highestSelectedSemester = selectedSemesters.length ? Math.max(...selectedSemesters) : null;
 
+  const dashboardGroups = visibleRequirementGroups;
 
   return (
-    <main className="container">
-      <header className="hero">
-        <h1>가천대 미술치료전공 과목 이수 플래너_260902ver</h1>
+    <main className="container app-shell">
+      <header className="hero app-header">
+        <div>
+          <h1>가천대 미술치료전공 과목 이수 플래너_260908ver</h1>
+          <p className="hero-subtitle">과목 이수 현황과 졸업·자격요건을 한 곳에서 관리합니다.</p>
+        </div>
       </header>
 
-      <details className="card profile-card" open>
-        <summary className="profile-card-summary">
-          <h2 className="section-title">1. 내 정보</h2>
-          <div className="profile-summary-values">
-            {highestSelectedSemester ? (
-              <span className="goal-option semester-option semester-choice selected profile-summary-button">
-                <input type="checkbox" checked readOnly tabIndex={-1} />
-                <span>{highestSelectedSemester}학차</span>
-              </span>
-            ) : (
-              <span className="profile-summary-empty">학차 미선택</span>
-            )}
+      <nav className="main-tabs" aria-label="플래너 주요 메뉴">
+        {([
+          ["DASHBOARD", "내 현황"],
+          ["COURSES", "과목 선택"],
+          ["REQUIREMENTS", "목표 진행상황"],
+          ["RECOMMENDATIONS", "추천 과목"],
+        ] as [MainTab, string][]).map(([key, label]) => (
+          <button
+            key={key}
+            className={`main-tab ${mainTab === key ? "active" : ""}`}
+            onClick={() => setMainTab(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
 
-            {developmentVoucherSelected && (
-              <span className="goal-option checkbox-option development-option selected profile-summary-button">
-                <input type="checkbox" checked readOnly tabIndex={-1} />
-                <span>발달바우처</span>
-              </span>
-            )}
+      {mainTab === "DASHBOARD" && (
+        <div className="tab-panel">
+          <details className="card profile-card" open>
+            <summary className="profile-card-summary">
+              <h2 className="section-title">내 정보 및 목표 설정</h2>
+              <div className="profile-summary-values">
+                {highestSelectedSemester ? (
+                  <span className="goal-option semester-option semester-choice selected profile-summary-button">
+                    <input type="checkbox" checked readOnly tabIndex={-1} />
+                    <span>{highestSelectedSemester}학차</span>
+                  </span>
+                ) : <span className="profile-summary-empty">학차 미선택</span>}
 
-            {artPsychCounselorSelected && (
-              <span className="goal-option checkbox-option counselor-option selected profile-summary-button">
-                <input type="checkbox" checked readOnly tabIndex={-1} />
-                <span>미술심리상담사(가천대)</span>
-              </span>
-            )}
+                {developmentVoucherSelected && (
+                  <span className="goal-option development-option selected profile-summary-button">
+                    <input type="checkbox" checked readOnly tabIndex={-1} />
+                    <span>발달바우처</span>
+                  </span>
+                )}
+                {artPsychCounselorSelected && (
+                  <span className="goal-option counselor-option selected profile-summary-button">
+                    <input type="checkbox" checked readOnly tabIndex={-1} />
+                    <span>미술심리상담사(가천대)</span>
+                  </span>
+                )}
+                {!developmentVoucherSelected && !artPsychCounselorSelected && (
+                  <span className="profile-summary-empty">추가 목표 요건 미선택</span>
+                )}
+                <span className={`goal-option ${track === "THESIS" ? "thesis-option" : "non-thesis-option"} selected profile-summary-button`}>
+                  <input type="radio" checked readOnly tabIndex={-1} />
+                  <span>{track === "THESIS" ? "논문" : "비논문"}</span>
+                </span>
+              </div>
+            </summary>
 
-            {!developmentVoucherSelected && !artPsychCounselorSelected && (
-              <span className="profile-summary-empty">목표 요건 미선택</span>
-            )}
+            <div className="profile-card-content">
+              <div className="small profile-info-guide">
+                <span>목표를 선택하면 요건 별 판정과 추천 과목에 자동 반영됩니다.</span>
+                <span>{storageReady ? "입력한 정보는 현재 브라우저에 저장됩니다. 브라우저가 바뀌면 다시 입력해야 합니다." : "저장된 이수 정보를 불러오는 중입니다."}</span>
+              </div>
 
-            <span className={`goal-option ${track === "THESIS" ? "thesis-option" : "non-thesis-option"} selected profile-summary-button`}>
-              <input type="radio" checked readOnly tabIndex={-1} />
-              <span>{track === "THESIS" ? "논문" : "비논문"}</span>
-            </span>
+              <div className="profile-info-list">
+                <div className="profile-info-section">
+                  <div className="profile-info-heading">1) 학차 선택</div>
+                  <p className="profile-info-subguide">현재 학차를 포함하여 이전 학차까지 모두 선택</p>
+                  <div className="semester-options-inline">
+                    {([1,2,3,4,5] as Semester[]).map(n => (
+                      <label className={`goal-option semester-option semester-choice ${selectedSemesters.includes(n) ? "selected" : ""}`} key={n}>
+                        <input type="checkbox" checked={selectedSemesters.includes(n)} onChange={() => toggleSemesterSelection(n)} />
+                        <span>{n}학차</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="profile-info-section">
+                  <div className="profile-info-heading">2) 목표 요건</div>
+                  <p className="profile-info-subguide">선택 시 요건 별 판정과 추천 수강과목에 반영</p>
+                  <div className="goal-options-inline">
+                    <label className={`goal-option development-option ${developmentVoucherSelected ? "selected" : ""}`}>
+                      <input type="checkbox" checked={developmentVoucherSelected} onChange={e => setDevelopmentVoucherSelected(e.target.checked)} />
+                      <span>발달바우처</span>
+                    </label>
+                    <label className={`goal-option counselor-option ${artPsychCounselorSelected ? "selected" : ""}`}>
+                      <input type="checkbox" checked={artPsychCounselorSelected} onChange={e => setArtPsychCounselorSelected(e.target.checked)} />
+                      <span>미술심리상담사(가천대)</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="profile-info-section">
+                  <div className="profile-info-heading">3) 졸업 트랙 요건</div>
+                  <p className="profile-info-subguide">선택 시 프로포절/졸업시험 요건 반영</p>
+                  <div className="track-options-inline">
+                    <label className={`goal-option thesis-option ${track === "THESIS" ? "selected" : ""}`}>
+                      <input type="radio" name="graduation-track" value="THESIS" checked={track === "THESIS"} onChange={() => setTrack("THESIS")} />
+                      <span>논문</span>
+                    </label>
+                    <label className={`goal-option non-thesis-option ${track === "NON_THESIS" ? "selected" : ""}`}>
+                      <input type="radio" name="graduation-track" value="NON_THESIS" checked={track === "NON_THESIS"} onChange={() => setTrack("NON_THESIS")} />
+                      <span>비논문</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <section className="card dashboard-summary-card">
+            <div className="section-heading-row">
+              <div>
+                <h2 className="section-title">현재 이수 현황</h2>
+                <p className="small section-subtitle">과목을 체크하면 이수학점과 목표 진행률이 즉시 반영됩니다.</p>
+              </div>
+              <button className="text-action" onClick={() => setMainTab("COURSES")}>과목 선택하기 →</button>
+            </div>
+            <div className="grid4">
+              <div className="metric"><div className="label">총 이수학점</div><div className="value">{credits.total}</div></div>
+              <div className="metric"><div className="label">공통 학점</div><div className="value">{credits.common}</div></div>
+              <div className="metric"><div className="label">전공 학점</div><div className="value">{credits.major}</div></div>
+              <div className="metric"><div className="label">이수 과목</div><div className="value">{completed.length}</div></div>
+            </div>
+          </section>
+
+          <section className="card dashboard-goals-section">
+            <div className="section-heading-row dashboard-goal-heading">
+              <div>
+                <h2 className="section-title">목표 진행상황</h2>
+                <p className="small section-subtitle">자세히 보기를 누르면 보다 상세한 목표 진행상황을 확인할 수 있습니다.</p>
+              </div>
+            </div>
+            <div className="goal-dashboard-grid">
+              {dashboardGroups.map(group => {
+                const progress = getGroupProgress(group.items);
+                const completedGroup = isGroupCompleted(group.items);
+                return (
+                  <button
+                    key={group.key}
+                    className={`goal-dashboard-card goal-${group.key}`}
+                    onClick={() => openRequirement(group.key)}
+                  >
+                    <div className="goal-dashboard-top">
+                      <div>
+                        <div className="goal-dashboard-title">{group.shortTitle}</div>
+                        {group.titleNote && <div className="goal-dashboard-note">{group.titleNote}</div>}
+                      </div>
+                      <span className={`status ${completedGroup ? "ok" : "no"}`}>{completedGroup ? "충족" : "진행중"}</span>
+                    </div>
+                    <div className="goal-dashboard-progress-row">
+                      <strong>{progress}%</strong>
+                      <span>자세히 보기 →</span>
+                    </div>
+                    <div className="progress dashboard-progress"><div style={{ width: `${progress}%` }} /></div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {mainTab === "COURSES" && (
+        <section className="card tab-panel">
+          <div className="section-heading-row">
+            <div>
+              <h2 className="section-title">과목 선택</h2>
+              <p className="small section-subtitle">수강 완료한 과목을 체크하고 필요하면 이수 학차를 수정하세요.</p>
+            </div>
           </div>
-        </summary>
-
-        <div className="profile-card-content">
-          <div className="small profile-info-guide">
-            <span>정보를 입력하고 과목을 체크하면 요건의 충족 여부를 자동으로 계산하고 수강 과목을 추천합니다.</span>
-            <span>{storageReady ? "입력한 정보는 현재 브라우저에 저장됩니다. 다만, 브라우저 변경 시 다시 입력이 필요합니다." : "저장된 이수 정보를 불러오는 중입니다."}</span>
+          <div className="toolbar"><input className="search" placeholder="과목명 검색" value={search} onChange={e => setSearch(e.target.value)} /></div>
+          <div className="small filter-help filter-help-lines">
+            <span>체크한 과목은 ‘이수한 과목’에서만 보이며, 해당 필터에서 이수 학차를 확인·변경할 수 있습니다.</span>
+            <span>새로 체크한 과목은 선택한 학차 중 가장 높은 학차로 우선 기록됩니다.</span>
           </div>
 
-          <div className="profile-info-list">
-            <div className="profile-info-section">
-              <div className="profile-info-heading">1) 학차 선택</div>
-              <p className="profile-info-subguide">현재 학차를 포함하여 이전 학차까지 모두 선택</p>
-              <div className="semester-options-inline">
-                {([1,2,3,4,5] as Semester[]).map(n => (
-                  <label className={`goal-option semester-option semester-choice ${selectedSemesters.includes(n) ? "selected" : ""}`} key={n}>
-                    <input type="checkbox" checked={selectedSemesters.includes(n)} onChange={() => toggleSemesterSelection(n)} />
-                    <span>{n}학차</span>
-                  </label>
+          <div className="filter-label">기본 필터</div>
+          <div className="filters basic-filter-row">
+            {baseFilters.map(([key,label]) => (
+              <button key={key} className={`filter-btn ${filter === key ? "active" : ""}`} onClick={() => setFilter(key)}>{label}</button>
+            ))}
+            <button className="clear-all-btn" onClick={clearCompleted}>전체 해제</button>
+          </div>
+          <div className="filter-label">요건 별 과목</div>
+          <div className="filters">
+            {requirementFilters.map(([key,label]) => (
+              <button key={key} className={`filter-btn ${filter === key ? "active" : ""}`} onClick={() => setFilter(key)}>{label}</button>
+            ))}
+          </div>
+
+          {visibleCourses.length === 0 ? (
+            <div className="empty course-empty">{filter === "COMPLETED" ? "아직 이수한 과목이 없습니다." : "현재 조건에 표시할 미이수 과목이 없습니다."}</div>
+          ) : showCategorySections ? (
+            <div className="course-category-sections">
+              {commonVisibleCourses.length > 0 && (
+                <details className="course-category-section" open>
+                  <summary className="course-category-heading">
+                    <span>공통</span>
+                    <span className="course-category-count">{commonVisibleCourses.length}과목</span>
+                  </summary>
+                  <div className="course-list course-list-grouped">{commonVisibleCourses.map(renderCourseItem)}</div>
+                </details>
+              )}
+              {majorVisibleCourses.length > 0 && (
+                <details className="course-category-section" open>
+                  <summary className="course-category-heading">
+                    <span>전공</span>
+                    <span className="course-category-count">{majorVisibleCourses.length}과목</span>
+                  </summary>
+                  <div className="course-list course-list-grouped">{majorVisibleCourses.map(renderCourseItem)}</div>
+                </details>
+              )}
+            </div>
+          ) : (
+            <div className="course-list">{visibleCourses.map(renderCourseItem)}</div>
+          )}
+        </section>
+      )}
+
+      {mainTab === "REQUIREMENTS" && (
+        <div className="tab-panel requirements-panel">
+          <section className="card requirements-status-section">
+            <h2 className="section-title">현재 이수 현황</h2>
+            <div className="grid4 requirements-credit-summary">
+            <div className="metric"><div className="label">총 이수학점</div><div className="value">{credits.total}</div></div>
+            <div className="metric"><div className="label">공통 학점</div><div className="value">{credits.common}</div></div>
+            <div className="metric"><div className="label">전공 학점</div><div className="value">{credits.major}</div></div>
+            <div className="metric"><div className="label">이수 과목</div><div className="value">{completed.length}</div></div>
+            </div>
+          </section>
+
+          <section className="card requirements-progress-section">
+            <div className="section-heading-row">
+              <div>
+                <h2 className="section-title">목표 진행상황</h2>
+                <p className="small section-subtitle">현재 선택한 목표에 필요한 요건만 표시합니다.</p>
+              </div>
+            </div>
+
+          <div className="requirement-tabs" role="tablist" aria-label="목표 진행상황 선택">
+            {visibleRequirementGroups.map(group => (
+              <button
+                key={group.key}
+                className={`requirement-tab requirement-tab-${group.key} ${activeGroup?.key === group.key ? "active" : ""}`}
+                onClick={() => setActiveRequirement(group.key)}
+              >
+                {group.shortTitle}
+              </button>
+            ))}
+          </div>
+
+          {activeGroup && (
+            <div className={`requirement-detail requirement-${activeGroup.key}`}>
+              <div className="requirement-detail-head">
+                <div>
+                  <h3>{activeGroup.title}{activeGroup.titleNote ? <> <span className="requirement-title-note">({activeGroup.titleNote})</span></> : null}</h3>
+                  <p className="requirement-summary">{activeGroup.description}</p>
+                </div>
+                <div className="requirement-detail-percent">{getGroupProgress(activeGroup.items)}%</div>
+              </div>
+
+              {activeGroup.sourceNote && <div className="requirement-source-note">※ {activeGroup.sourceNote}</div>}
+
+              <div className="requirement-items">
+                {activeGroup.items.map(item => (
+                  <RequirementItem item={item} completedSet={completedSet} key={item.key} />
                 ))}
               </div>
             </div>
+          )}
+          </section>
 
-            <div className="profile-info-section">
-              <div className="profile-info-heading">2) 목표 요건</div>
-              <p className="profile-info-subguide">선택 시 요건 별 판정과 추천 수강과목에 반영</p>
-              <div className="goal-options-inline">
-                <label className={`goal-option checkbox-option development-option ${developmentVoucherSelected ? "selected" : ""}`}>
-                  <input
-                    type="checkbox"
-                    checked={developmentVoucherSelected}
-                    onChange={e => setDevelopmentVoucherSelected(e.target.checked)}
-                  />
-                  <span>발달바우처</span>
-                </label>
-                <label className={`goal-option checkbox-option counselor-option ${artPsychCounselorSelected ? "selected" : ""}`}>
-                  <input
-                    type="checkbox"
-                    checked={artPsychCounselorSelected}
-                    onChange={e => setArtPsychCounselorSelected(e.target.checked)}
-                  />
-                  <span>미술심리상담사(가천대)</span>
-                </label>
+          <section className="card requirements-completed-section">
+            <div className="section-heading-row requirements-completed-heading">
+              <div>
+                <h2 className="section-title">이수한 과목 ({completed.length})</h2>
+                <p className="small section-subtitle">이수 완료한 과목과 이수 학차를 확인할 수 있습니다.</p>
               </div>
             </div>
 
-            <div className="profile-info-section">
-              <div className="profile-info-heading">3) 졸업 트랙 요건</div>
-              <p className="profile-info-subguide">선택 시 프로포절/졸업시험 요건 반영</p>
-              <div className="track-options-inline">
-                <label className={`goal-option thesis-option ${track === "THESIS" ? "selected" : ""}`}>
-                  <input type="radio" name="graduation-track" value="THESIS" checked={track === "THESIS"} onChange={() => setTrack("THESIS")} />
-                  <span>논문</span>
-                </label>
-                <label className={`goal-option non-thesis-option ${track === "NON_THESIS" ? "selected" : ""}`}>
-                  <input type="radio" name="graduation-track" value="NON_THESIS" checked={track === "NON_THESIS"} onChange={() => setTrack("NON_THESIS")} />
-                  <span>비논문</span>
-                </label>
+            {completed.length === 0 ? (
+              <div className="empty">아직 이수한 과목이 없습니다.</div>
+            ) : (
+              <div className="course-category-sections requirements-completed-courses">
+                {COURSES.filter(course => completedSet.has(course.id) && course.category === "COMMON").length > 0 && (
+                  <details className="course-category-section" open>
+                    <summary className="course-category-heading">
+                      <span>공통</span>
+                      <span className="course-category-count">
+                        {COURSES.filter(course => completedSet.has(course.id) && course.category === "COMMON").length}과목
+                      </span>
+                    </summary>
+                    <div className="course-list course-list-grouped">
+                      {COURSES
+                        .filter(course => completedSet.has(course.id) && course.category === "COMMON")
+                        .sort((a, b) => a.name.localeCompare(b.name, "ko-KR"))
+                        .map(renderCourseItem)}
+                    </div>
+                  </details>
+                )}
+
+                {COURSES.filter(course => completedSet.has(course.id) && course.category === "MAJOR").length > 0 && (
+                  <details className="course-category-section" open>
+                    <summary className="course-category-heading">
+                      <span>전공</span>
+                      <span className="course-category-count">
+                        {COURSES.filter(course => completedSet.has(course.id) && course.category === "MAJOR").length}과목
+                      </span>
+                    </summary>
+                    <div className="course-list course-list-grouped">
+                      {COURSES
+                        .filter(course => completedSet.has(course.id) && course.category === "MAJOR")
+                        .sort((a, b) => a.name.localeCompare(b.name, "ko-KR"))
+                        .map(renderCourseItem)}
+                    </div>
+                  </details>
+                )}
               </div>
+            )}
+          </section>
+        </div>
+      )}
+
+      {mainTab === "RECOMMENDATIONS" && (
+        <section className="card recommendation-section tab-panel">
+          <div className="section-heading-row">
+            <div>
+              <h2 className="section-title">추천 수강과목</h2>
+              <p className="small recommendation-guide">선택한 목표와 현재 이수과목을 기준으로 우선순위가 높은 미이수 과목을 추천합니다.</p>
             </div>
           </div>
-        </div>
-      </details>
-
-      <section className="card">
-        <h2 className="section-title">2. 과목 선택</h2>
-        <div className="toolbar"><input className="search" placeholder="과목명 검색" value={search} onChange={e => setSearch(e.target.value)} /></div>
-        <div className="small filter-help filter-help-lines">
-          <span>체크한 과목은 ‘이수한 과목’에서만 보이며, 해당 필터에서 이수 학차를 확인·변경할 수 있습니다.</span>
-          <span>새로 체크한 과목은 선택한 학차 중 가장 높은 학차로 우선 기록됩니다.</span>
-        </div>
-
-        <div className="filter-label">기본 필터</div>
-        <div className="filters basic-filter-row">{baseFilters.map(([key,label]) => <button key={key} className={`filter-btn ${filter === key ? "active" : ""}`} onClick={() => setFilter(key)}>{label}</button>)}<button className="clear-all-btn" onClick={clearCompleted}>전체 해제</button></div>
-        <div className="filter-label">요건 별 과목</div>
-        <div className="filters">{requirementFilters.map(([key,label]) => <button key={key} className={`filter-btn ${filter === key ? "active" : ""}`} onClick={() => setFilter(key)}>{label}</button>)}</div>
-
-
-        {visibleCourses.length === 0 ? (
-          <div className="empty course-empty">{filter === "COMPLETED" ? "아직 이수한 과목이 없습니다." : "현재 조건에 표시할 미이수 과목이 없습니다."}</div>
-        ) : showCategorySections ? (
-          <div className="course-category-sections">
-            {commonVisibleCourses.length > 0 && (
-              <details className="course-category-section" open>
-                <summary className="course-category-heading">
-                  <span>공통</span>
-                  <span className="course-category-count">{commonVisibleCourses.length}과목</span>
-                </summary>
-                <div className="course-list course-list-grouped">{commonVisibleCourses.map(renderCourseItem)}</div>
-              </details>
-            )}
-            {majorVisibleCourses.length > 0 && (
-              <details className="course-category-section" open>
-                <summary className="course-category-heading">
-                  <span>전공</span>
-                  <span className="course-category-count">{majorVisibleCourses.length}과목</span>
-                </summary>
-                <div className="course-list course-list-grouped">{majorVisibleCourses.map(renderCourseItem)}</div>
-              </details>
-            )}
-          </div>
-        ) : (
-          <div className="course-list">{visibleCourses.map(renderCourseItem)}</div>
-        )}
-      </section>
-
-      <section className="card"><h2 className="section-title">3. 현재 이수 현황</h2><div className="grid4"><div className="metric"><div className="label">총 이수학점</div><div className="value">{credits.total}</div></div><div className="metric"><div className="label">공통 학점</div><div className="value">{credits.common}</div></div><div className="metric"><div className="label">전공 학점</div><div className="value">{credits.major}</div></div><div className="metric"><div className="label">이수 과목</div><div className="value">{completed.length}</div></div></div></section>
-
-      <section className="card" style={{marginTop:18}}><h2 className="section-title">4. 요건 별 판정</h2>
-        <div className="requirement-groups">
-          {requirementGroups.map(group => (
-            <details className={`requirement-group requirement-${group.key}`} key={group.key} open>
-              <summary className="requirement-group-head">
-                <div>
-                  <h3>{group.title}{group.titleNote ? <> <span className="requirement-title-note">({group.titleNote})</span></> : null}</h3>
-                  <p className="requirement-summary">{group.description}</p>
+          <div className="recommendation-list">
+            {recommendations.length === 0 ? (
+              <div className="empty">현재 추천할 미이수 과목이 없습니다.</div>
+            ) : recommendations.map((rec,index) => (
+              <div className={`rec ${rec.course.category === "COMMON" ? "rec-common" : "rec-major"}`} key={rec.course.id}>
+                <div className="rec-top">
+                  <div>
+                    <strong>{index+1}. {rec.course.name}</strong>
+                    <div className="small">{rec.course.category === "COMMON" ? "공통" : "전공"} · {rec.course.credits}학점</div>
+                  </div>
+                  <div className="score">추천점수 <strong>{rec.score.toFixed(1)}</strong> / 10</div>
                 </div>
-              </summary>
-              <div className="requirement-items">
-                {group.items.map(item => <RequirementItem item={item} completedSet={completedSet} showCourses={true} key={item.key} />)}
+                <div className="rec-reasons">
+                  {[...rec.reasons]
+                    .sort((a, b) => {
+                      const order = (reason: string) => {
+                        if (reason.startsWith("졸업 ")) return 0;
+                        if (reason.includes("발달바우처")) return 1;
+                        if (reason.includes("미술심리상담사(가천대)")) return 2;
+                        return 3;
+                      };
+                      return order(a) - order(b);
+                    })
+                    .map(reason => (
+                      <span
+                        key={reason}
+                        className={`reason ${requirementColorClass(reason)} ${rec.priority === "URGENT" ? "urgent" : ""}`}
+                      >
+                        {reason}
+                      </span>
+                    ))}
+                </div>
               </div>
-            </details>
-          ))}
-        </div>
-      </section>
-
-      <section className="card recommendation-section"><h2 className="section-title">5. 추천 수강과목</h2><p className="small recommendation-guide">위에서 선택한 목표와 수강한 과목에 따라 맞춤으로 추천 과목 리스트가 결정됩니다.</p>
-        <div className="recommendation-list">{recommendations.length === 0 ? <div className="empty">현재 추천할 미이수 과목이 없습니다.</div> : recommendations.map((rec,index) => <div className={`rec ${rec.course.category === "COMMON" ? "rec-common" : "rec-major"}`} key={rec.course.id}><div className="rec-top"><div><strong>{index+1}. {rec.course.name}</strong><div className="small">{rec.course.category === "COMMON" ? "공통" : "전공"} · {rec.course.credits}학점</div></div><div className="score">추천점수 <strong>{rec.score.toFixed(1)}</strong> / 10</div></div><div className="rec-reasons">
-  {[...rec.reasons]
-    .sort((a, b) => {
-      const order = (reason: string) => {
-        if (reason.startsWith("졸업 ")) return 0;
-        if (reason.includes("발달바우처")) return 1;
-        return 2;
-      };
-      return order(a) - order(b);
-    })
-    .map(reason => (
-      <span
-        key={reason}
-        className={`reason ${requirementColorClass(reason)} ${rec.priority === "URGENT" ? "urgent" : ""}`}
-      >
-        {reason}
-      </span>
-    ))}
-</div></div>)}</div>
-      </section>
+            ))}
+          </div>
+        </section>
+      )}
 
       <footer className="developer-footer">Designed &amp; Developed by Hui</footer>
     </main>
