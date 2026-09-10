@@ -1135,3 +1135,42 @@ select {
   .goal-dashboard-card { padding: 14px; }
   .requirement-detail-percent { font-size: 22px; }
 }
+
+/* 260910 모바일 탭/필터 한 줄 표시 보정 */
+@media (max-width: 760px) {
+  .main-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .main-tab {
+    min-width: 0;
+    padding-left: 2px;
+    padding-right: 2px;
+    font-size: 13px;
+    letter-spacing: -0.4px;
+    white-space: nowrap;
+  }
+
+  /* 과목 선택: 필터/전체 해제 글씨를 13px로 키우고 한 줄 유지 */
+  .filter-btn,
+  .clear-all-btn {
+    padding-left: 2px;
+    padding-right: 2px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  /* 목표 진행상황: 긴 요건명도 13px에서 한 줄 유지 */
+  .requirement-tab {
+    padding-left: 2px;
+    padding-right: 2px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  /* 내 현황 > 학차 선택 / 목표 요건 / 졸업 트랙 선택 버튼 */
+  .profile-info-list .goal-option span,
+  .profile-summary-button {
+    font-size: 13px;
+  }
+}
