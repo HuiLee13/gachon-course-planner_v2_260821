@@ -2,7 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "가천대 미술치료전공 과목 이수 플래너_260908ver",
+  title: "가천대 미술치료전공 이수과목 플래너",
   description: "졸업·자격·시험·프로포절 요건을 확인하는 과목 이수 플래너",
 };
 

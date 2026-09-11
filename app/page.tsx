@@ -11,7 +11,12 @@ import {
   type Track,
 } from "@/lib/coursePlanner";
 
-type Semester = 1 | 2 | 3 | 4 | 5;
+const SEMESTERS = [1, 2, 3, 4, 5] as const;
+type Semester = (typeof SEMESTERS)[number];
+
+function isSemester(value: unknown): value is Semester {
+  return SEMESTERS.includes(Number(value) as Semester);
+}
 type MainTab = "DASHBOARD" | "COURSES" | "REQUIREMENTS" | "RECOMMENDATIONS";
 type RequirementKey =
   | "graduation"
@@ -152,9 +157,9 @@ export default function Home() {
       const raw = window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem("gachon-course-planner-v1");
       if (raw) {
         const saved = JSON.parse(raw) as Partial<SavedPlannerState>;
-        const savedSemester = [1,2,3,4,5].includes(Number(saved.semester)) ? Number(saved.semester) as Semester : 1;
+        const savedSemester = isSemester(saved.semester) ? Number(saved.semester) as Semester : 1;
         const restoredSemesters = Array.isArray(saved.selectedSemesters)
-          ? saved.selectedSemesters.filter((value): value is Semester => [1,2,3,4,5].includes(Number(value)))
+          ? saved.selectedSemesters.filter(isSemester)
           : [];
 
         setSelectedSemesters(
@@ -174,7 +179,7 @@ export default function Home() {
           const restored: Partial<Record<string, Semester>> = {};
           validCompleted.forEach(id => {
             const stored = saved.courseSemesters?.[id];
-            if ([1,2,3,4,5].includes(Number(stored))) restored[id] = Number(stored) as Semester;
+            if (isSemester(stored)) restored[id] = Number(stored) as Semester;
           });
           setCourseSemesters(restored);
         }
@@ -286,9 +291,32 @@ export default function Home() {
   const visibleRequirementGroups = requirementGroups.filter(group => group.selected);
   const activeGroup = visibleRequirementGroups.find(group => group.key === activeRequirement) ?? visibleRequirementGroups[0];
 
+  const moveToTabTop = (tab: MainTab) => {
+    setMainTab(tab);
+
+    // 탭 화면이 렌더링된 뒤 페이지 맨 위로 이동
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  };
+
+  const moveToTabSection = (tab: MainTab, sectionId: string) => {
+    setMainTab(tab);
+
+    // 탭 화면이 렌더링된 뒤 원하는 구역으로 이동
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.getElementById(sectionId)?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    });
+  };
+
   const openRequirement = (key: RequirementKey) => {
     setActiveRequirement(key);
-    setMainTab("REQUIREMENTS");
+    moveToTabSection("REQUIREMENTS", "goal-progress-section");
   };
 
   const visibleCourses = useMemo(() => {
@@ -338,7 +366,7 @@ export default function Home() {
 
   const changeCourseSemester = (id: string, value: string) => {
     const nextSemester = Number(value) as Semester;
-    if (![1,2,3,4,5].includes(nextSemester)) return;
+    if (!isSemester(nextSemester)) return;
     setCourseSemesters(current => ({ ...current, [id]: nextSemester }));
   };
 
@@ -371,7 +399,7 @@ export default function Home() {
                 <span>이수 학차</span>
                 <select value={courseSemesters[course.id] ?? ""} onChange={e => changeCourseSemester(course.id, e.target.value)}>
                   <option value="">학차 선택</option>
-                  {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}학차</option>)}
+                  {SEMESTERS.map(n => <option key={n} value={n}>{n}학차</option>)}
                 </select>
               </label>
             )}
@@ -400,14 +428,31 @@ export default function Home() {
 
   const highestSelectedSemester = selectedSemesters.length ? Math.max(...selectedSemesters) : null;
 
-  const dashboardGroups = visibleRequirementGroups;
+  const completedCoursesByCategory = useMemo(() => ({
+    COMMON: COURSES
+      .filter(course => completedSet.has(course.id) && course.category === "COMMON")
+      .sort((a, b) => a.name.localeCompare(b.name, "ko-KR")),
+    MAJOR: COURSES
+      .filter(course => completedSet.has(course.id) && course.category === "MAJOR")
+      .sort((a, b) => a.name.localeCompare(b.name, "ko-KR")),
+  }), [completedSet]);
 
   return (
     <main className="container app-shell">
       <header className="hero app-header">
         <div>
-          <h1>가천대 미술치료전공 과목 이수 플래너_260908ver</h1>
-          <p className="hero-subtitle">과목 이수 현황과 졸업·자격요건을 한 곳에서 관리합니다.</p>
+          <h1>가천대 미술치료전공 이수 플래너</h1>
+          <div className="header-guide">
+          <span>과목 이수 현황과 졸업·자격요건을 한 곳에서 관리합니다.</span>
+          {storageReady ? (
+            <>
+              <span>입력한 정보는 현재 브라우저에만 저장됩니다.</span>
+              <span>브라우저 변경 시 저장정보가 초기화됩니다.</span>
+            </>
+          ) : (
+            <span>저장된 이수 정보를 불러오는 중입니다.</span>
+          )}
+        </div>
         </div>
       </header>
 
@@ -415,13 +460,13 @@ export default function Home() {
         {([
           ["DASHBOARD", "내 현황"],
           ["COURSES", "과목 선택"],
-          ["REQUIREMENTS", "목표 진행상황"],
+          ["REQUIREMENTS", "목표 현황"],
           ["RECOMMENDATIONS", "추천 과목"],
         ] as [MainTab, string][]).map(([key, label]) => (
           <button
             key={key}
             className={`main-tab ${mainTab === key ? "active" : ""}`}
-            onClick={() => setMainTab(key)}
+            onClick={() => moveToTabTop(key)}
           >
             {label}
           </button>
@@ -465,8 +510,7 @@ export default function Home() {
 
             <div className="profile-card-content">
               <div className="small profile-info-guide">
-                <span>목표를 선택하면 요건 별 판정과 추천 과목에 자동 반영됩니다.</span>
-                <span>{storageReady ? "입력한 정보는 현재 브라우저에 저장됩니다. 브라우저가 바뀌면 다시 입력해야 합니다." : "저장된 이수 정보를 불러오는 중입니다."}</span>
+                <span>선택 정보와 목표는 목표 현황과 추천 과목에 반영됩니다.</span>
               </div>
 
               <div className="profile-info-list">
@@ -474,7 +518,7 @@ export default function Home() {
                   <div className="profile-info-heading">1) 학차 선택</div>
                   <p className="profile-info-subguide">현재 학차를 포함하여 이전 학차까지 모두 선택</p>
                   <div className="semester-options-inline">
-                    {([1,2,3,4,5] as Semester[]).map(n => (
+                    {SEMESTERS.map(n => (
                       <label className={`goal-option semester-option semester-choice ${selectedSemesters.includes(n) ? "selected" : ""}`} key={n}>
                         <input type="checkbox" checked={selectedSemesters.includes(n)} onChange={() => toggleSemesterSelection(n)} />
                         <span>{n}학차</span>
@@ -484,8 +528,8 @@ export default function Home() {
                 </div>
 
                 <div className="profile-info-section">
-                  <div className="profile-info-heading">2) 목표 요건</div>
-                  <p className="profile-info-subguide">선택 시 요건 별 판정과 추천 수강과목에 반영</p>
+                  <div className="profile-info-heading">2) 목표 선택</div>
+                  <p className="profile-info-subguide">목표 진행 상황과 추천 과목에 반영</p>
                   <div className="goal-options-inline">
                     <label className={`goal-option development-option ${developmentVoucherSelected ? "selected" : ""}`}>
                       <input type="checkbox" checked={developmentVoucherSelected} onChange={e => setDevelopmentVoucherSelected(e.target.checked)} />
@@ -499,8 +543,8 @@ export default function Home() {
                 </div>
 
                 <div className="profile-info-section">
-                  <div className="profile-info-heading">3) 졸업 트랙 요건</div>
-                  <p className="profile-info-subguide">선택 시 프로포절/졸업시험 요건 반영</p>
+                  <div className="profile-info-heading">3) 졸업 트랙 선택</div>
+                  <p className="profile-info-subguide">프로포절/졸업시험 목표 반영</p>
                   <div className="track-options-inline">
                     <label className={`goal-option thesis-option ${track === "THESIS" ? "selected" : ""}`}>
                       <input type="radio" name="graduation-track" value="THESIS" checked={track === "THESIS"} onChange={() => setTrack("THESIS")} />
@@ -520,9 +564,9 @@ export default function Home() {
             <div className="section-heading-row">
               <div>
                 <h2 className="section-title">현재 이수 현황</h2>
-                <p className="small section-subtitle">과목을 체크하면 이수학점과 목표 진행률이 즉시 반영됩니다.</p>
+                <p className="small section-subtitle">과목을 선택하면 이수학점에 반영됩니다.</p>
               </div>
-              <button className="text-action" onClick={() => setMainTab("COURSES")}>과목 선택하기 →</button>
+              <button className="text-action" onClick={() => moveToTabTop("COURSES")}>과목 선택하기 →</button>
             </div>
             <div className="grid4">
               <div className="metric"><div className="label">총 이수학점</div><div className="value">{credits.total}</div></div>
@@ -535,12 +579,12 @@ export default function Home() {
           <section className="card dashboard-goals-section">
             <div className="section-heading-row dashboard-goal-heading">
               <div>
-                <h2 className="section-title">목표 진행상황</h2>
-                <p className="small section-subtitle">자세히 보기를 누르면 보다 상세한 목표 진행상황을 확인할 수 있습니다.</p>
+                <h2 className="section-title">목표 진행 상황</h2>
+                <p className="small section-subtitle">자세히 보기를 클릭하시면 보다 상세한 진행상황을 확인하실 수 있습니다.</p>
               </div>
             </div>
             <div className="goal-dashboard-grid">
-              {dashboardGroups.map(group => {
+              {visibleRequirementGroups.map(group => {
                 const progress = getGroupProgress(group.items);
                 const completedGroup = isGroupCompleted(group.items);
                 return (
@@ -574,13 +618,15 @@ export default function Home() {
           <div className="section-heading-row">
             <div>
               <h2 className="section-title">과목 선택</h2>
-              <p className="small section-subtitle">수강 완료한 과목을 체크하고 필요하면 이수 학차를 수정하세요.</p>
             </div>
           </div>
-          <div className="toolbar"><input className="search" placeholder="과목명 검색" value={search} onChange={e => setSearch(e.target.value)} /></div>
           <div className="small filter-help filter-help-lines">
-            <span>체크한 과목은 ‘이수한 과목’에서만 보이며, 해당 필터에서 이수 학차를 확인·변경할 수 있습니다.</span>
-            <span>새로 체크한 과목은 선택한 학차 중 가장 높은 학차로 우선 기록됩니다.</span>
+            <span>수강을 완료한 과목을 선택하시고, 선택한 과목은 '이수한 과목' 버튼을 통해 확인하실 수 있습니다.</span>
+            <span>'이수한 과목' 필터에서 기존에 선택한 과목의 이수 학차를 수정하실 수 있습니다.</span>
+            <span>선택한 과목은 '내 현황'에서 선택한 학차 중 가장 높은 학차로 우선 기록됩니다.</span>
+          </div>
+          <div className="toolbar">
+            <input className="search" placeholder="과목명 검색" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
 
           <div className="filter-label">기본 필터</div>
@@ -638,15 +684,15 @@ export default function Home() {
             </div>
           </section>
 
-          <section className="card requirements-progress-section">
+          <section id="goal-progress-section" className="card requirements-progress-section">
             <div className="section-heading-row">
               <div>
-                <h2 className="section-title">목표 진행상황</h2>
-                <p className="small section-subtitle">현재 선택한 목표에 필요한 요건만 표시합니다.</p>
+                <h2 className="section-title">목표 진행 상황</h2>
+                <p className="small section-subtitle">'내 현황'에서 선택한 목표를 반영하여 표시됩니다.</p>
               </div>
             </div>
 
-          <div className="requirement-tabs" role="tablist" aria-label="목표 진행상황 선택">
+          <div className="requirement-tabs" role="tablist" aria-label="목표 진행 상황 선택">
             {visibleRequirementGroups.map(group => (
               <button
                 key={group.key}
@@ -683,7 +729,7 @@ export default function Home() {
             <div className="section-heading-row requirements-completed-heading">
               <div>
                 <h2 className="section-title">이수한 과목 ({completed.length})</h2>
-                <p className="small section-subtitle">이수 완료한 과목과 이수 학차를 확인할 수 있습니다.</p>
+                <p className="small section-subtitle">수강 완료한 과목과 이수 학차를 확인할 수 있습니다.</p>
               </div>
             </div>
 
@@ -691,39 +737,25 @@ export default function Home() {
               <div className="empty">아직 이수한 과목이 없습니다.</div>
             ) : (
               <div className="course-category-sections requirements-completed-courses">
-                {COURSES.filter(course => completedSet.has(course.id) && course.category === "COMMON").length > 0 && (
-                  <details className="course-category-section" open>
-                    <summary className="course-category-heading">
-                      <span>공통</span>
-                      <span className="course-category-count">
-                        {COURSES.filter(course => completedSet.has(course.id) && course.category === "COMMON").length}과목
-                      </span>
-                    </summary>
-                    <div className="course-list course-list-grouped">
-                      {COURSES
-                        .filter(course => completedSet.has(course.id) && course.category === "COMMON")
-                        .sort((a, b) => a.name.localeCompare(b.name, "ko-KR"))
-                        .map(renderCourseItem)}
-                    </div>
-                  </details>
-                )}
+                {([
+                  ["COMMON", "공통"],
+                  ["MAJOR", "전공"],
+                ] as const).map(([category, label]) => {
+                  const courses = completedCoursesByCategory[category];
+                  if (courses.length === 0) return null;
 
-                {COURSES.filter(course => completedSet.has(course.id) && course.category === "MAJOR").length > 0 && (
-                  <details className="course-category-section" open>
-                    <summary className="course-category-heading">
-                      <span>전공</span>
-                      <span className="course-category-count">
-                        {COURSES.filter(course => completedSet.has(course.id) && course.category === "MAJOR").length}과목
-                      </span>
-                    </summary>
-                    <div className="course-list course-list-grouped">
-                      {COURSES
-                        .filter(course => completedSet.has(course.id) && course.category === "MAJOR")
-                        .sort((a, b) => a.name.localeCompare(b.name, "ko-KR"))
-                        .map(renderCourseItem)}
-                    </div>
-                  </details>
-                )}
+                  return (
+                    <details className="course-category-section" open key={category}>
+                      <summary className="course-category-heading">
+                        <span>{label}</span>
+                        <span className="course-category-count">{courses.length}과목</span>
+                      </summary>
+                      <div className="course-list course-list-grouped">
+                        {courses.map(renderCourseItem)}
+                      </div>
+                    </details>
+                  );
+                })}
               </div>
             )}
           </section>
@@ -735,7 +767,7 @@ export default function Home() {
           <div className="section-heading-row">
             <div>
               <h2 className="section-title">추천 수강과목</h2>
-              <p className="small recommendation-guide">선택한 목표와 현재 이수과목을 기준으로 우선순위가 높은 미이수 과목을 추천합니다.</p>
+              <p className="small recommendation-guide">'내 현황'에서 선택한 목표와 현재 수강 완료한 과목을 기준으로 우선순위가 높은 미이수 과목을 추천받을 수 있습니다.</p>
             </div>
           </div>
           <div className="recommendation-list">
@@ -776,7 +808,10 @@ export default function Home() {
         </section>
       )}
 
-      <footer className="developer-footer">Designed &amp; Developed by Hui</footer>
+      <footer className="developer-footer"><div className="footer-meta">
+          <div className="footer-version">Version. 260911</div>
+          <div className="footer-credit">Designed &amp; Developed by Hui</div>
+        </div></footer>
     </main>
   );
 }
